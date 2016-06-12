@@ -1,0 +1,111 @@
+Reproducible Data - Peer Assessment 1
+=======================================================
+
+##Loading and preprocessing the data
+In order to load the data, I will download the activity.csv file which contains data from a personal activity monitoring device. A short description is below:  
+  
+*This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.*
+
+The variables include the following:  
+  
+- steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+- date: The date on which the measurement was taken in YYYY-MM-DD format
+- interval: Identifier for the 5-minute interval in which measurement was taken
+
+```{r}
+data <- read.csv("activity-2.csv", header = TRUE, colClasses = c("integer", "Date", "factor"))
+data$month <- as.numeric(format(data$date, "%m"))
+```
+  
+    
+##Developing a histogram and calculating the mean & median
+Before developing a histogram and calculating the mean and median, I will create a subset of the data that excludes all NAs.  
+  
+```{r}
+simpledata <- na.omit(data)
+```
+  
+Using the simplifed subset, I will then make a histogram of the total steps taken in a day:  
+  
+```{r}
+library(ggplot2)
+ggplot(simpledata, aes(date,steps)) + geom_bar(stat = "identity", color = "steelblue", fill = "steelblue", width = 0.5) + labs(title = "Histogram of Steps Taken Each Day", x = "Date", y = "Number of steps")
+```
+
+Next, I will calculate the mean and median of the simplifed subset:  
+  
+  
+```{r}
+totalsteps <- aggregate(simpledata$steps, list(Date = simpledata$date), FUN = "sum")$x
+mean(totalsteps)
+median(totalsteps)
+```  
+  
+##Developing a time-series of average steps taken per day
+Again, using the simplified subset, I will create a time-series graph depicting the average steps taken by the 5-minute intervals:  
+
+```{r}
+avgsteps <- aggregate(simpledata$steps, list(interval = as.numeric(as.character(simpledata$interval))), FUN = "mean")
+names(avgsteps)[2] <- "meansteps"
+
+ggplot(avgsteps, aes(interval, meansteps)) + geom_line(color = "steelblue", size = 0.5) + labs(title = "Time Series Plot of the 5-minute Interval", x = "5-minute intervals", y = "Average Number of Steps ")
+```  
+  
+The time interval with the most steps is:
+```{r}
+avgsteps[avgsteps$meansteps == max(avgsteps$meansteps), ]
+```
+
+##Imputing missing values
+I will now calculate how many NA values exist in the original data set:
+```{r}
+sum(is.na(data))
+```
+  
+To fill in the missing values, I will use the average of that specific interval. The new data set is created by the following function:
+```{r}
+newdata <- data 
+for (i in 1:nrow(newdata)) {
+    if (is.na(newdata$steps[i])) {
+        newdata$steps[i] <- avgsteps[which(newdata$interval[i] == avgsteps$interval), ]$meansteps
+    }
+}
+```
+
+I will recreate a histogram, mean, and median with the complete dataset:
+```{r}
+ggplot(newdata, aes(date, steps)) + geom_bar(stat = "identity", colour = "steelblue", fill = "steelblue", width = 0.5) + labs(title = "Histogram of Number of Steps Taken Each Day (complete)", x = "Date", y = "Number of steps")
+```
+  
+```{r}
+newtotalsteps <- aggregate(newdata$steps, list(Date = newdata$date), FUN = "sum")$x
+mean(newtotalsteps)
+median(newtotalsteps)
+```
+
+Based on the new mean and median versus the old mean and median, we find that the mean is the same across both, but the new median is of higher value than the old:
+```{r}
+mean(totalsteps)
+mean(newtotalsteps)
+median(totalsteps)
+median(newtotalsteps)
+```  
+  
+##Difference in activity patterns between the weekday and weekends
+First I wil create a factor variable that distinguishes weekdays versus weekends:
+```{r}
+head(newdata)
+newdata$weekdays <- factor(format(newdata$date, "%A"))
+levels(newdata$weekdays)
+levels(newdata$weekdays) <- list(weekday = c("Monday", "Tuesday","Wednesday", "Thursday", "Friday"), weekend = c("Saturday", "Sunday"))
+levels(newdata$weekdays)
+table(newdata$weekdays)
+```  
+  
+Next we will make a time-series graph comparing the activity during the weekday verus the weekend:
+```{r}
+avgsteps <- aggregate(newdata$steps, list(interval = as.numeric(as.character(newdata$interval)), weekdays = newdata$weekdays), FUN = "mean")
+names(avgsteps)[3] <- "meansteps"
+library(lattice)
+xyplot(avgsteps$meansteps ~ avgsteps$interval | avgsteps$weekdays, layout = c(1, 2), type = "l", xlab = "Interval", ylab = "Number of steps")
+```
